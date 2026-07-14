@@ -5,13 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice <?= esc($transaction['invoice_number']) ?></title>
     <style>
-        @page { margin: 0; }
+        @page { 
+            margin: 0; 
+            size: 58mm auto;
+        }
         body {
             font-family: 'Courier New', Courier, monospace;
-            margin: 0;
-            padding: 10px;
-            width: 300px; /* Adjust for thermal printer */
-            font-size: 12px;
+            margin: 0 auto;
+            padding: 5px; /* Adjust padding for 58mm */
+            width: 48mm; /* Printable area for 58mm thermal printer */
+            font-size: 11px; /* Smaller font for narrow paper */
             color: #000;
         }
         .text-center { text-align: center; }
