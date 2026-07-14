@@ -40,7 +40,6 @@
         }
         @media print {
             .no-print { display: none; }
-            body { width: 100%; }
         }
     </style>
 </head>
