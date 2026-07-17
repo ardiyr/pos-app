@@ -18,6 +18,7 @@
                         <th class="py-3 px-6 font-semibold text-sm text-gray-600">Nama Pembeli</th>
                         <th class="py-3 px-6 font-semibold text-sm text-gray-600">Total Belanja</th>
                         <th class="py-3 px-6 font-semibold text-sm text-gray-600">Kasir</th>
+                        <th class="py-3 px-6 font-semibold text-sm text-gray-600 text-center">Status</th>
                         <th class="py-3 px-6 font-semibold text-sm text-gray-600 text-right">Aksi</th>
                     </tr>
                 </thead>
@@ -36,9 +37,18 @@
                             </td>
                             <td class="py-3 px-6 font-semibold">Rp <?= number_format($tx['total_amount'], 0, ',', '.') ?></td>
                             <td class="py-3 px-6 text-gray-600">Admin</td>
+                            <td class="py-3 px-6 text-center">
+                                <?php if(isset($tx['status']) && $tx['status'] === 'pending'): ?>
+                                    <span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-yellow-300">Pending</span>
+                                <?php else: ?>
+                                    <span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-green-300">Selesai</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="py-3 px-6 text-right space-x-2 flex justify-end">
                                 <button @click="openDetails(<?= $tx['id'] ?>, '<?= esc($tx['invoice_number']) ?>')" class="text-blue-500 hover:text-blue-700 bg-blue-50 px-3 py-1 rounded text-sm font-medium transition">Detail</button>
+                                <?php if(!isset($tx['status']) || $tx['status'] === 'completed'): ?>
                                 <a href="<?= base_url('index.php/invoice/print/' . $tx['id']) ?>" target="_blank" class="text-green-600 hover:text-green-800 bg-green-50 px-3 py-1 rounded text-sm font-medium transition">Cetak Ulang</a>
+                                <?php endif; ?>
                                 <form action="<?= base_url('index.php/transactions/delete/' . $tx['id']) ?>" method="post" class="inline" onsubmit="confirmDelete(event, 'Apakah Anda yakin ingin membatalkan transaksi ini? Stok barang akan dikembalikan secara otomatis.');">
                                     <button type="submit" class="text-red-500 hover:text-red-700 bg-red-50 px-3 py-1 rounded text-sm font-medium transition">Batal</button>
                                 </form>

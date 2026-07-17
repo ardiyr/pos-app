@@ -21,6 +21,9 @@
             <a href="<?= base_url('index.php/dashboard') ?>" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition">
                 &larr; Kembali ke Dashboard
             </a>
+            <button @click="openPendingModal()" class="text-sm font-medium text-yellow-600 hover:text-yellow-800 border-l pl-4 transition">
+                Daftar Pesanan
+            </button>
             <div class="text-gray-500 font-medium border-l pl-4">Kasir: <?= session()->get('username') ?? 'Admin' ?></div>
             <a href="<?= base_url('index.php/logout') ?>" class="text-sm font-semibold text-red-500 hover:text-red-700 ml-4 border-l pl-4">Logout</a>
         </div>
@@ -124,17 +127,80 @@
                     <span class="text-xl font-bold" :class="changeAmount < 0 ? 'text-red-500' : 'text-green-600'" x-text="formatCurrency(changeAmount)"></span>
                 </div>
 
-                <button 
-                    @click="processCheckout()"
-                    :disabled="cart.length === 0 || changeAmount < 0 || isProcessing"
-                    class="w-full py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg text-lg"
-                >
-                    <span x-text="isProcessing ? 'Memproses...' : 'Bayar & Cetak Struk'"></span>
-                </button>
+                <div class="flex space-x-2">
+                    <button 
+                        @click="processCheckout(true)"
+                        :disabled="cart.length === 0 || isProcessing"
+                        class="w-1/3 py-4 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg text-sm"
+                    >
+                        Simpan
+                    </button>
+                    <button 
+                        @click="processCheckout(false)"
+                        :disabled="cart.length === 0 || changeAmount < 0 || isProcessing"
+                        class="w-2/3 py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-lg text-lg"
+                    >
+                        <span x-text="isProcessing ? 'Proses...' : 'Bayar & Cetak'"></span>
+                    </button>
+                </div>
             </div>
         </section>
 
     </main>
+
+    <!-- Modal Pending Orders -->
+    <div x-show="showPendingModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" style="display: none;">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+                <h3 class="text-xl font-bold text-gray-800">Daftar Pesanan Tersimpan</h3>
+                <button @click="showPendingModal = false" class="text-gray-400 hover:text-red-500 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-gray-100">
+                <template x-if="pendingOrders.length === 0">
+                    <div class="text-center py-8 text-gray-500">Tidak ada pesanan tersimpan.</div>
+                </template>
+                <div class="space-y-4">
+                    <template x-for="order in pendingOrders" :key="order.id">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <div class="flex justify-between items-start mb-3 border-b pb-3">
+                                <div>
+                                    <h4 class="font-bold text-gray-800" x-text="order.invoice_number"></h4>
+                                    <p class="text-sm text-gray-500" x-text="'Pelanggan: ' + (order.customer_name || 'Umum')"></p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-lg font-bold text-blue-600" x-text="formatCurrency(order.total_amount)"></div>
+                                    <div class="text-xs text-gray-400" x-text="order.created_at"></div>
+                                </div>
+                            </div>
+                            <div class="mb-4 space-y-1">
+                                <template x-for="item in order.details">
+                                    <div class="flex justify-between text-sm text-gray-600">
+                                        <span x-text="item.quantity + 'x ' + item.name"></span>
+                                        <span x-text="formatCurrency(item.subtotal)"></span>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="flex justify-end items-end space-x-3 mt-4 border-t pt-4">
+                                <div class="text-right">
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">Bayar (Rp)</label>
+                                    <input type="number" x-model.number="order.temp_payment" class="w-32 p-2 border rounded text-right focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                </div>
+                                <button 
+                                    @click="payPendingOrder(order)"
+                                    :disabled="!order.temp_payment || order.temp_payment < order.total_amount || isProcessing"
+                                    class="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                                >
+                                    Bayar & Cetak
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         function cashier() {
@@ -143,9 +209,60 @@
                 searchResults: [],
                 isLoading: false,
                 cart: [],
-                customerName: '',
                 paymentAmount: '',
+                customerName: '',
                 isProcessing: false,
+                showPendingModal: false,
+                pendingOrders: [],
+
+                init() {
+                    this.searchProducts();
+                },
+
+                async openPendingModal() {
+                    this.showPendingModal = true;
+                    this.fetchPendingOrders();
+                },
+
+                async fetchPendingOrders() {
+                    try {
+                        const response = await fetch('<?= base_url('index.php/api/orders/pending') ?>');
+                        this.pendingOrders = await response.json();
+                        this.pendingOrders.forEach(o => o.temp_payment = 0);
+                    } catch (error) {
+                        console.error('Error fetching pending orders:', error);
+                    }
+                },
+
+                async payPendingOrder(order) {
+                    if (order.temp_payment < order.total_amount) {
+                        Swal.fire({icon: 'error', title: 'Kurang', text: 'Pembayaran kurang!'});
+                        return;
+                    }
+                    this.isProcessing = true;
+                    try {
+                        const response = await fetch('<?= base_url('index.php/api/checkout/pay/') ?>' + order.id, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: JSON.stringify({ payment_amount: order.temp_payment })
+                        });
+                        const result = await response.json();
+                        if (response.ok) {
+                            Swal.fire({icon: 'success', title: 'Berhasil', text: 'Pesanan telah dibayar!', showConfirmButton: false, timer: 1500});
+                            window.open('<?= base_url('index.php/invoice/print/') ?>' + result.invoice_id, '_blank');
+                            this.fetchPendingOrders();
+                        } else {
+                            Swal.fire({icon: 'error', title: 'Gagal', text: result.message || 'Terjadi kesalahan'});
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        Swal.fire({icon: 'error', title: 'Oops...', text: 'Terjadi kesalahan pada server'});
+                    }
+                    this.isProcessing = false;
+                },
 
                 get totalAmount() {
                     return this.cart.reduce((total, item) => total + (item.sell_price * item.quantity), 0);
@@ -202,12 +319,12 @@
                     }
                 },
 
-                async processCheckout() {
+                async processCheckout(isPending = false) {
                     if (this.cart.length === 0) {
                         Swal.fire({icon: 'warning', title: 'Keranjang Kosong', text: 'Mohon masukkan barang ke keranjang terlebih dahulu!'});
                         return;
                     }
-                    if (this.changeAmount < 0) {
+                    if (!isPending && this.changeAmount < 0) {
                         Swal.fire({icon: 'error', title: 'Pembayaran Kurang', text: 'Pembayaran kurang Rp ' + Math.abs(this.changeAmount).toLocaleString('id-ID')});
                         return;
                     }
@@ -222,25 +339,31 @@
                             },
                             body: JSON.stringify({
                                 cart: this.cart,
-                                customer_name: this.customerName,
                                 total_amount: this.totalAmount,
-                                payment_amount: this.paymentAmount
+                                payment_amount: isPending ? 0 : this.paymentAmount,
+                                customer_name: this.customerName,
+                                is_pending: isPending
                             })
                         });
-
+                        
                         const result = await response.json();
                         
                         if (response.ok) {
-                            Swal.fire({icon: 'success', title: 'Berhasil', text: 'Transaksi Berhasil!', showConfirmButton: false, timer: 1500});
-                            // Print invoice in new tab
-                            window.open(`<?= base_url('index.php/invoice/print/') ?>${result.invoice_id}`, '_blank');
+                            if (isPending) {
+                                Swal.fire({icon: 'success', title: 'Tersimpan', text: 'Pesanan berhasil disimpan!', showConfirmButton: false, timer: 1500});
+                            } else {
+                                Swal.fire({icon: 'success', title: 'Berhasil', text: 'Transaksi Berhasil!', showConfirmButton: false, timer: 1500});
+                                // Print invoice in new tab
+                                window.open(`<?= base_url('index.php/invoice/print/') ?>${result.invoice_id}`, '_blank');
+                            }
                             
                             // Reset state
                             this.cart = [];
-                            this.customerName = '';
                             this.paymentAmount = '';
+                            this.customerName = '';
                             this.searchQuery = '';
                             this.searchResults = [];
+                            this.searchProducts(); // Refresh stock
                         } else {
                             Swal.fire({icon: 'error', title: 'Gagal', text: result.message || 'Terjadi kesalahan'});
                         }

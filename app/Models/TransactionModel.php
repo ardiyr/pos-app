@@ -12,7 +12,7 @@ class TransactionModel extends Model
     protected $returnType       = 'array';
     protected $useSoftDeletes   = false;
     protected $protectFields    = true;
-    protected $allowedFields    = ['invoice_number', 'customer_name', 'total_amount', 'payment_amount', 'change_amount'];
+    protected $allowedFields    = ['invoice_number', 'customer_name', 'total_amount', 'payment_amount', 'change_amount', 'status'];
 
     // Dates
     protected $useTimestamps = true;

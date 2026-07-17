@@ -8,6 +8,8 @@ use CodeIgniter\Router\RouteCollection;
 $routes->get('/', 'CashierController::index');
 $routes->get('/api/search', 'CashierController::searchProducts');
 $routes->post('/api/checkout', 'CashierController::processCheckout');
+$routes->get('/api/orders/pending', 'CashierController::getPendingOrders');
+$routes->post('/api/checkout/pay/(:num)', 'CashierController::payOrder/$1');
 $routes->get('/invoice/print/(:num)', 'CashierController::invoicePrint/$1');
 
 // Auth

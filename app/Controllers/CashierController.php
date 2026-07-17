@@ -45,12 +45,17 @@ class CashierController extends BaseController
         return $this->response->setJSON($products);
     }
 
-    // API to process the checkout
+    // API to process the checkout or save order
     public function processCheckout()
     {
         $json = $this->request->getJSON();
+        $isPending = isset($json->is_pending) && $json->is_pending === true;
         
-        if (!$json || empty($json->cart) || $json->payment_amount < $json->total_amount) {
+        if (!$json || empty($json->cart)) {
+            return $this->response->setStatusCode(400)->setJSON(['message' => 'Invalid data']);
+        }
+
+        if (!$isPending && (!isset($json->payment_amount) || $json->payment_amount < $json->total_amount)) {
             return $this->response->setStatusCode(400)->setJSON(['message' => 'Invalid data or insufficient payment']);
         }
 
@@ -63,8 +68,9 @@ class CashierController extends BaseController
             'invoice_number' => $invoiceNumber,
             'customer_name'  => isset($json->customer_name) && trim($json->customer_name) !== '' ? trim($json->customer_name) : null,
             'total_amount'   => $json->total_amount,
-            'payment_amount' => $json->payment_amount,
-            'change_amount'  => $json->payment_amount - $json->total_amount
+            'payment_amount' => $isPending ? 0 : $json->payment_amount,
+            'change_amount'  => $isPending ? 0 : ($json->payment_amount - $json->total_amount),
+            'status'         => $isPending ? 'pending' : 'completed'
         ];
         
         $this->transactionModel->insert($transactionData);
@@ -100,8 +106,52 @@ class CashierController extends BaseController
         }
 
         return $this->response->setJSON([
-            'message' => 'Transaction successful',
-            'invoice_id' => $transactionId
+            'success' => true,
+            'transaction_id' => $transactionId,
+            'invoice_id' => $transactionId,
+            'is_pending' => $isPending
+        ]);
+    }
+
+    // API to get pending orders
+    public function getPendingOrders()
+    {
+        $orders = $this->transactionModel->where('status', 'pending')->orderBy('created_at', 'DESC')->findAll();
+        // Load details for each order to show in UI
+        foreach ($orders as &$order) {
+            $order['details'] = $this->transactionDetailModel
+                ->select('transaction_details.*, products.name')
+                ->join('products', 'products.id = transaction_details.product_id')
+                ->where('transaction_id', $order['id'])
+                ->findAll();
+        }
+        return $this->response->setJSON($orders);
+    }
+
+    // API to pay pending order
+    public function payOrder($id)
+    {
+        $json = $this->request->getJSON();
+        
+        $order = $this->transactionModel->find($id);
+        if (!$order || $order['status'] !== 'pending') {
+            return $this->response->setStatusCode(404)->setJSON(['message' => 'Pesanan tidak ditemukan atau sudah selesai']);
+        }
+
+        if (!isset($json->payment_amount) || $json->payment_amount < $order['total_amount']) {
+            return $this->response->setStatusCode(400)->setJSON(['message' => 'Pembayaran kurang']);
+        }
+
+        $this->transactionModel->update($id, [
+            'payment_amount' => $json->payment_amount,
+            'change_amount'  => $json->payment_amount - $order['total_amount'],
+            'status'         => 'completed'
+        ]);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'transaction_id' => $id,
+            'invoice_id' => $id
         ]);
     }
 
